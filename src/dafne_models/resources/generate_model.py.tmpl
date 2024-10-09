@@ -111,7 +111,11 @@ def make_unet():
 
     def make_up_layer(input_layer, down_layer, filters, kernel_size, strides, padding, n_conv_layers = 2):
         #print_dbg("Up level with input size ", input_layer.shape, 'down layer', down_layer.shape, 'filters ', filters, ' kernel_size ', kernel_size, ' strides ', strides, " output_padding ", padding)
-        level_up = Conv2DTranspose(filters=filters, kernel_size=kernel_size, strides=strides, output_padding=(padding, padding),
+        if padding <= 0:
+            output_padding = None
+        else:
+            output_padding = (padding, padding)
+        level_up = Conv2DTranspose(filters=filters, kernel_size=kernel_size, strides=strides, output_padding=output_padding,
                                kernel_regularizer=regularizers.l2(reg))(input_layer)
         level_up = BatchNormalization(axis=-1)(level_up)
         level_up_shortcut = level_up
