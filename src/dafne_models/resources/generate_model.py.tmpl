@@ -269,7 +269,7 @@ def model_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
 
 
 generate_convert(model_id=MODEL_UID,
-                 default_weights_path=os.path.join('weights', f'weights_{MODEL_NAME}.hdf5'),
+                 default_weights_path=os.path.join('weights', f'weights_{MODEL_NAME}.weights.hd5'),
                  model_name_prefix=MODEL_NAME,
                  model_create_function=make_unet,
                  model_apply_function=model_apply,

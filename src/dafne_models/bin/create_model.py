@@ -467,7 +467,7 @@ def save_weights(model, model_name):
     :return:
     """
     os.makedirs('weights', exist_ok=True)
-    model_path = os.path.join('weights', f'weights_{model_name}.hdf5')
+    model_path = os.path.join('weights', f'weights_{model_name}.weights.hd5')
     model.save_weights(model_path)
     print(f'Saved weights to {model_path}')
 

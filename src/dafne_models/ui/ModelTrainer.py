@@ -323,7 +323,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         # save weights
         os.makedirs(os.path.join(self.model_dir, 'weights'), exist_ok=True)
-        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.hdf5'))
+        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.weights.hd5'))
         self.set_progress_signal.emit(100, 'Done')
         self.end_fitting_signal.emit()
         self.is_fitting = False
