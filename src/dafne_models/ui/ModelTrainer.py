@@ -84,7 +84,6 @@ class PredictionUICallback(Callback, QObject):
 
 
 class ModelTrainer(QWidget, Ui_ModelTrainerUI):
-
     set_progress_signal = pyqtSignal(int, str)
     start_fitting_signal = pyqtSignal()
     end_fitting_signal = pyqtSignal()
@@ -323,7 +322,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         # save weights
         os.makedirs(os.path.join(self.model_dir, 'weights'), exist_ok=True)
-        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.weights.hd5'))
+        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.weights.h5'))
         self.set_progress_signal.emit(100, 'Done')
         self.end_fitting_signal.emit()
         self.is_fitting = False
@@ -432,3 +431,4 @@ def main():
     window = ModelTrainer()
     window.show()
     sys.exit(app.exec_())
+
