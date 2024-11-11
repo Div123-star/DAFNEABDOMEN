@@ -381,6 +381,45 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
       old_model = DynamicDLModel.Load(f)
    old_model.get_weights()
 
+   # Initialize a new model
+   model = create_unet_model()  # Replace with the function that creates your model architecture
+
+   # Apply chaos.model weights to the new model
+   model.set_weights(old_model.get_weights())
+
+   # Freeze the first N layers
+   num_layers_to_freeze = 10  # Choose based on experimentation
+   for layer in model.layers[:num_layers_to_freeze]:
+       layer.trainable = False
+
+   from tensorflow.keras.layers import Dense
+   from tensorflow.keras import Model
+
+   # Example: Modify the output layer if the number of classes differs
+   num_classes = 15  # Adjust this to match the number of AMOS classes
+   x = model.layers[-2].output  # Get the second-to-last layer output
+   new_output = Dense(num_classes, activation='softmax')(x)  # Create a new output layer
+
+   # Create a new model with the modified output
+   model = Model(inputs=model.input, outputs=new_output)
+
+   from tensorflow.keras.optimizers import Adam
+
+   learning_rate = 0.0001  # Set a low learning rate for fine-tuning
+   model.compile(optimizer=Adam(learning_rate=learning_rate), loss=weighted_loss)
+
+   # Fine-tune the model on AMOS training data
+   history = model.fit(
+       training_generator,
+       epochs=20,  # Set a smaller number of epochs for fine-tuning
+       steps_per_epoch=len(training_generator),
+       validation_data=validation_generator,
+       validation_steps=len(validation_generator)
+   )
+
+   # Save the fine-tuned model
+   model.save('amos_finetuned.model')
+
    # do the training
    if n_validation > 0:
        if ENABLE_GUI:
