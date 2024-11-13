@@ -17,12 +17,12 @@ assert sys.version_info.major == 3, "This software is only compatible with Pytho
 
 
 if sys.version_info.minor < 9:
-   from ..utils.source_tools import extract_function_source_basic as extract_function_source
+   from dafne_models.utils.source_tools import extract_function_source_basic as extract_function_source
 else:
-   from ..utils.source_tools import extract_function_source
+   from dafne_models.utils.source_tools import extract_function_source
 
 
-from .. import resources
+from dafne_models import resources
 if sys.version_info.minor < 10:
    import importlib_resources as pkg_resources
 else:
@@ -51,7 +51,8 @@ DEFAULT_BIASCORRECTION_LEVELS = 4
 DEFAULT_BIASCORRECTION_NORMALIZE = -1
 
 
-DATA_PATH = None
+DATA_PATH =  "/Users/dibya/dafne/MyThesisDatasets/amos22/MRI_data/npz_files"
+
 
 
 
@@ -85,7 +86,7 @@ def get_force_preprocess():
 # Get the path of the script's parent directory
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 # Add the parent directory to sys.path to import common
-sys.path.append(parent_dir)
+sys.path.append("/Users/dibya/dafne/dafne-models/src/dafne_models/common.py")
 
 
 
@@ -377,45 +378,40 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
 
 
     # Load existing model
-   with open('chaos.model', 'rb') as f:
+   with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
       old_model = DynamicDLModel.Load(f)
    old_model.get_weights()
 
-   # Initialize a new model
-   model = create_unet_model()  # Replace with the function that creates your model architecture
+num_classes = 15 # number of classes for amoss data
+inputs = old_model.model.input
+new_classification_layer = Dense(num_classes, activation='softmax', name="AMOS_output")(old_model.model.layers[-2].output)
+model_new = Model(inputs=inputs, outputs=new_classification_layer)
 
-   # Apply chaos.model weights to the new model
-   model.set_weights(old_model.get_weights())
+# Set the encoder weights from `chaos.model` and freeze these layers
+for layer, chaos_layer in zip(model_new.layers[:-1], old_model.model.layers):
+    layer.set_weights(chaos_layer.get_weights())
+    layer.trainable = False  # Freeze the encoder layers to retain CHAOS knowledge
 
-   # Freeze the first N layers
-   num_layers_to_freeze = 10  # Choose based on experimentation
-   for layer in model.layers[:num_layers_to_freeze]:
-       layer.trainable = False
+    # Ensure the new classification layer remains trainable
+    model_new.layers[-1].trainable = True
 
-   from tensorflow.keras.layers import Dense
-   from tensorflow.keras import Model
+    # Compile the model for fine-tuning on the AMOS dataset
+    model_new.compile(
+        optimizer=Adam(learning_rate=0.0001),  # Low learning rate for fine-tuning
+        loss='categorical_crossentropy',  # For multi-class segmentation/classification
+        metrics=['accuracy']
+    )
+    # Summary to inspect the model structure
+    model_new.summary()
 
-   # Example: Modify the output layer if the number of classes differs
-   num_classes = 15  # Adjust this to match the number of AMOS classes
-   x = model.layers[-2].output  # Get the second-to-last layer output
-   new_output = Dense(num_classes, activation='softmax')(x)  # Create a new output layer
-
-   # Create a new model with the modified output
-   model = Model(inputs=model.input, outputs=new_output)
-
-   from tensorflow.keras.optimizers import Adam
-
-   learning_rate = 0.0001  # Set a low learning rate for fine-tuning
-   model.compile(optimizer=Adam(learning_rate=learning_rate), loss=weighted_loss)
-
-   # Fine-tune the model on AMOS training data
-   history = model.fit(
-       training_generator,
-       epochs=20,  # Set a smaller number of epochs for fine-tuning
-       steps_per_epoch=len(training_generator),
-       validation_data=validation_generator,
-       validation_steps=len(validation_generator)
-   )
+    # fine tune the model on Amos training data
+    history = model_new.fit(
+        training_generator,
+        epochs=20,  # Set a smaller number of epochs for fine-tuning
+        steps_per_epoch=len(training_generator),
+        validation_data=validation_generator,
+        validation_steps=len(validation_generator)
+    )
 
    # Save the fine-tuned model
    model.save('amos_finetuned.model')
