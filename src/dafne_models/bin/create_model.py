@@ -51,7 +51,7 @@ DEFAULT_BIASCORRECTION_LEVELS = 4
 DEFAULT_BIASCORRECTION_NORMALIZE = -1
 
 
-DATA_PATH = "/Users/dibya/dafne/MyThesisDatasets/amos22/MRI_data/npz_files"
+DATA_PATH = None
 
 
 def set_data_path(path):
@@ -75,7 +75,7 @@ def get_force_preprocess():
 # Get the path of the script's parent directory
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 # Add the parent directory to sys.path to import common
-sys.path.append("/Users/dibya/dafne/dafne-models/src/dafne_models/common.py")
+sys.path.append(parent_dir)
 
 
 def load_data(data_path):
@@ -301,16 +301,27 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
     """
     n_validation = len(x_val_list)
 
-    with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
-        old_dafne_model = DynamicDLModel.Load(f)
+    TRANSFER_LEARNING=True
 
-    old_model = old_dafne_model.model
+    if TRANSFER_LEARNING:
+        with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
+            old_dafne_model = DynamicDLModel.Load(f)
 
-    for layer, chaos_layer in zip(model.layers[:-1], old_model.layers):
-        layer.set_weights(chaos_layer.get_weights())
-        layer.trainable = False
+        old_model = old_dafne_model.model
 
-    model.layers[-1].trainable = True
+        print('Total layers', len(model.layers))
+        current_layer = 0
+        for layer, chaos_layer in zip(model.layers[:-1], old_model.layers):
+            print(current_layer)
+            current_layer += 1
+            try:
+                layer.set_weights(chaos_layer.get_weights())
+            except ValueError:
+                break
+            layer.trainable = False
+
+        model.layers[-1].trainable = True
+
 
     adamlr = optimizers.Adam(learning_rate=0.009765, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     model.compile(loss=weighted_loss, optimizer=adamlr)
