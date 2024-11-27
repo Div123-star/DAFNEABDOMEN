@@ -274,6 +274,7 @@ def make_data_generator(data_list, common_resolution, model_size, label_dict):
     steps = int(len(training_objects) / BATCH_SIZE)
     data_generator = DataGeneratorMem(training_objects, list_X=list(range(steps * BATCH_SIZE)),
                                       batch_size=BATCH_SIZE, dim=model_size)
+
     return data_generator, steps
 
 
@@ -301,7 +302,7 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
     """
     n_validation = len(x_val_list)
 
-    TRANSFER_LEARNING=True
+    TRANSFER_LEARNING=False
 
     if TRANSFER_LEARNING:
         with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
@@ -470,7 +471,7 @@ def save_weights(model, model_name):
     :return:
     """
     os.makedirs('weights', exist_ok=True)
-    model_path = os.path.join('weights', f'weights_{model_name}.weights.hd5')
+    model_path = os.path.join('weights', f'weights_{model_name}.weights.h5')
     model.save_weights(model_path)
     print(f'Saved weights to {model_path}')
 
