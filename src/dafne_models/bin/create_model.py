@@ -302,7 +302,7 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
     """
     n_validation = len(x_val_list)
 
-    TRANSFER_LEARNING=False
+    TRANSFER_LEARNING=True
 
     if TRANSFER_LEARNING:
         with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
