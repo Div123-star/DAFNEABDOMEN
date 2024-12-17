@@ -84,6 +84,7 @@ class PredictionUICallback(Callback, QObject):
 
 
 class ModelTrainer(QWidget, Ui_ModelTrainerUI):
+
     set_progress_signal = pyqtSignal(int, str)
     start_fitting_signal = pyqtSignal()
     end_fitting_signal = pyqtSignal()
@@ -146,6 +147,74 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.val_image_list = []
         self.preprocessed_data_exist = False
 
+        self.transfer_learning_checkBox.stateChanged.connect(self.toggle_transfer_learning)
+        self.pushButton.setEnabled(False)  # Initially disabled
+        self.pushButton.clicked.connect(self.choose_base_model)
+        self.BaseModel_Text.textChanged.connect(self.decide_enable_fit)
+        self.BaseModel_Text.textChanged.connect(self.handle_base_model_text_change)
+
+
+    ################
+    @pyqtSlot(int)
+    def toggle_transfer_learning(self, state):
+        """Enable or disable the Choose button and BaseModel_Text based on checkbox state."""
+        enabled = bool(state)
+        self.pushButton.setEnabled(enabled)
+        self.BaseModel_Text.setEnabled(enabled)
+
+
+        # Clear BaseModel_Text when disabling transfer learning
+        if not enabled:
+            self.BaseModel_Text.clear()
+        self.advanced_button.setEnabled(not enabled)
+
+
+    @pyqtSlot()
+    def choose_base_model(self):
+        """Open a file dialog and display the selected file path in lineEdit."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Base Model",
+            "",
+            "Model Files (*.model *.h5 *.pt);;All Files (*)"
+        )
+        if file_path:
+            self.BaseModel_Text.setText(file_path)
+
+
+
+        # Check if force_preprocess_check was changed
+        elif self.sender() == self.force_preprocess_check:
+            self.transfer_learning_checkBox.blockSignals(True)  # Prevent recursion
+            self.transfer_learning_checkBox.setChecked(not bool(state))  # Invert the state
+            self.transfer_learning_checkBox.blockSignals(False)
+
+        # Update UI based on transfer_learning_checkBox state
+        self.toggle_transfer_learning(self.transfer_learning_checkBox.isChecked())
+
+    @pyqtSlot(str)
+    def handle_base_model_text_change(self, text):
+        """Disable force_preprocess_check if BaseModel_Text is filled."""
+        if text.strip():
+            self.force_preprocess_check.setEnabled(False)
+        else:
+            self.force_preprocess_check.setEnabled(True)
+
+
+    @pyqtSlot(str, str, result=object)
+    def extract_parameter(self, source_code, parameter_name):
+        """Extract a parameter's value from the source code based on its assignment pattern."""
+        pattern = rf"{parameter_name}\s*=\s*([0-9]+|\"[^\"]+\"|'[^']+')"
+        match = re.search(pattern, source_code)
+
+        if match:
+            value = match.group(1)
+            if value.isdigit():
+                return int(value)
+            return value.strip('"').strip("'")
+
+        raise ValueError(f"Parameter '{parameter_name}' not found in source code")
+
     @pyqtSlot()
     def show_advanced(self):
         self.advanced_widget.show()
@@ -171,6 +240,8 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.fit_Button.setEnabled(False)
             self.preprocess_Button.setEnabled(False)
             self.set_progress(0, '')
+
+
 
     def decide_preprocess(self):
         if os.path.exists(os.path.join(self.data_dir, 'training_obj.pickle')):
@@ -216,13 +287,24 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.model_location_Text.setText("")
             self.decide_enable_fit()
 
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save Model As", "",
-                                                  "Model Files (*.model);;All Files (*)")
+        # Open a save file dialog with a default extension
+        fileName, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Model As",
+            "",
+            "Model Files (*.model);;All Files (*)"
+        )
+
         if fileName:
+            # Extract the directory and file name
             self.model_dir = os.path.dirname(fileName)
             self.model_name = os.path.basename(fileName)
+
+            # Ensure the file name ends with '.model'
             if self.model_name.endswith('.model'):
                 self.model_name = self.model_name[:-6]
+
+            # Set the selected file path in BaseModel_Text
             self.model_location_Text.setText(fileName)
             self.decide_enable_fit()
         else:
@@ -240,11 +322,39 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         self.set_progress_signal.emit(10, 'Getting model info')
         common_resolution, model_size, label_dict = get_model_info(data_list)
+##############################################################
+        # TODO: check if transfer  learning is enabled
+        # if enabled:
+        # load the model:
+        # Initialize parameters based on transfer learning state
+        # Check if transfer learning is enabled via the checkbox
+        if not self.transfer_learning_checkBox.isChecked():
+            base_model = None
 
-        levels = self.levels_spin.value()
-        conv_layers = self.convlayers_spin.value()
-        kernel_size = self.kernsize_spin.value()
+            levels = self.levels_spin.value()
+            conv_layers = self.convlayers_spin.value()
+            kernel_size = self.kernsize_spin.value()
+        else:
+            base_model = self.BaseModel_Text.text().strip()
 
+            if base_model and os.path.exists(base_model):
+
+                with open(base_model, 'rb') as f:
+                    old_model = DynamicDLModel.Load(f)
+
+                source_code = old_model.init_model_function.source
+                apply_source_code = old_model.apply_model_function.source
+
+                levels = self.extract_parameter(source_code, 'N_LEVELS')
+                conv_layers = self.extract_parameter(source_code, 'N_CONV_LAYERS')
+                kernel_size = self.extract_parameter(source_code, 'INITIAL_KERNEL_SIZE')
+                common_resolution = self.extract_parameter(apply_source_code, 'MODEL_RESOLUTION')
+                model_size = self.extract_parameter(source_code, 'MODEL_SIZE')
+            else:
+                QMessageBox.critical(self, "Error", "Invalid base model path.")
+                return
+
+#############################
         set_force_preprocess(self.force_preprocess_check.isChecked())
 
         self.set_progress_signal.emit(20, 'Creating model')
@@ -300,7 +410,9 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         else:
             self.slice_select_slider.setEnabled(False)
 
-        trained_model, history = train_model(model, training_generator, steps, x_val_list, y_val_list, [self.fitting_ui_callback])
+
+
+        trained_model, history = train_model(model, training_generator, steps, x_val_list, y_val_list, [self.fitting_ui_callback], base_model)
         if self.fitting_ui_callback.best_weights is not None:
             trained_model.set_weights(self.fitting_ui_callback.best_weights)
 
@@ -322,7 +434,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         # save weights
         os.makedirs(os.path.join(self.model_dir, 'weights'), exist_ok=True)
-        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.weights.h5'))
+        trained_model.save_weights(os.path.join(self.model_dir, 'weights', f'weights_{self.model_name}.weights.hd5'))
         self.set_progress_signal.emit(100, 'Done')
         self.end_fitting_signal.emit()
         self.is_fitting = False
@@ -431,4 +543,3 @@ def main():
     window = ModelTrainer()
     window.show()
     sys.exit(app.exec_())
-

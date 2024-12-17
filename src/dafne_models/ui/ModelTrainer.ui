@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>818</width>
-    <height>646</height>
+    <height>648</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,7 +53,7 @@
      <item>
       <widget class="QCheckBox" name="transfer_learning_checkBox">
        <property name="text">
-        <string>Transfer Learning</string>
+        <string>Transfer Learning:</string>
        </property>
       </widget>
      </item>
@@ -65,9 +65,12 @@
       </widget>
      </item>
      <item>
-      <widget class="QLineEdit" name="lineEdit">
+      <widget class="QLineEdit" name="BaseModel_Text">
        <property name="enabled">
         <bool>false</bool>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -78,6 +81,12 @@
        </property>
        <property name="text">
         <string>Choose...</string>
+       </property>
+       <property name="autoDefault">
+        <bool>true</bool>
+       </property>
+       <property name="default">
+        <bool>false</bool>
        </property>
       </widget>
      </item>
@@ -110,6 +119,9 @@
        <property name="text">
         <string>Choose...</string>
        </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
     </layout>
@@ -119,7 +131,7 @@
      <item>
       <widget class="QCheckBox" name="force_preprocess_check">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="text">
         <string>Force preprocess</string>
@@ -144,6 +156,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="advanced_button">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
        <property name="text">
         <string>Advanced settings</string>
        </property>
@@ -184,6 +199,9 @@
         </property>
         <item>
          <widget class="QLabel" name="label_3">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="text">
            <string>Levels: </string>
           </property>
@@ -191,6 +209,9 @@
         </item>
         <item>
          <widget class="QSpinBox" name="levels_spin">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="minimum">
            <number>1</number>
           </property>
@@ -201,6 +222,9 @@
         </item>
         <item>
          <widget class="QLabel" name="label_4">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="text">
            <string> Conv. layers: </string>
           </property>
@@ -208,6 +232,9 @@
         </item>
         <item>
          <widget class="QSpinBox" name="convlayers_spin">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="value">
            <number>2</number>
           </property>
@@ -215,6 +242,9 @@
         </item>
         <item>
          <widget class="QLabel" name="label_5">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="text">
            <string> Kernel size: </string>
           </property>
@@ -222,6 +252,9 @@
         </item>
         <item>
          <widget class="QSpinBox" name="kernsize_spin">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="minimum">
            <number>1</number>
           </property>
