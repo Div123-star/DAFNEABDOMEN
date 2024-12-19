@@ -151,8 +151,6 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.pushButton.setEnabled(False)  # Initially disabled
         self.pushButton.clicked.connect(self.choose_base_model)
         self.BaseModel_Text.textChanged.connect(self.decide_enable_fit)
-        self.BaseModel_Text.textChanged.connect(self.handle_base_model_text_change)
-
 
     ################
     @pyqtSlot(int)
@@ -192,15 +190,6 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         # Update UI based on transfer_learning_checkBox state
         self.toggle_transfer_learning(self.transfer_learning_checkBox.isChecked())
 
-    @pyqtSlot(str)
-    def handle_base_model_text_change(self, text):
-        """Disable force_preprocess_check if BaseModel_Text is filled."""
-        if text.strip():
-            self.force_preprocess_check.setEnabled(False)
-        else:
-            self.force_preprocess_check.setEnabled(True)
-
-
     @pyqtSlot(str, str, result=object)
     def extract_parameter(self, source_code, parameter_name):
         """Extract a parameter's value from the source code based on its assignment pattern."""
@@ -230,7 +219,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.fit_Button.setText('Fit')
         else:
             self.fit_Button.setText('Preprocess + fit')
-        if self.location_Text.text() and self.model_location_Text.text():
+        if self.location_Text.text() and (self.model_location_Text.text()or self.BaseModel_Text.text()):
             self.fit_Button.setEnabled(True)
             if not self.preprocessed_data_exist or self.force_preprocess_check.isChecked():
                 self.preprocess_Button.setEnabled(True)
