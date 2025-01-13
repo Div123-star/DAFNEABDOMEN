@@ -1,10 +1,14 @@
+import ast
 import os
 import time
+import re
 
 from dafne_dl import DynamicDLModel
 
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QVariant
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLineEdit, QSpinBox, QLabel
+
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +25,7 @@ from ..utils.ThreadHelpers import separate_thread_decorator
 
 PATIENCE = 10
 MIN_EPOCHS = 20
+
 
 class PredictionUICallback(Callback, QObject):
     fit_signal = pyqtSignal(float, float, np.ndarray, np.ndarray)
@@ -75,7 +80,7 @@ class PredictionUICallback(Callback, QObject):
             self.min_val_loss = np.inf
 
         if self.test_image is None:
-            self.fit_signal.emit(loss, val_loss, np.zeros((10,10)))
+            self.fit_signal.emit(loss, val_loss, np.zeros((10, 10)))
             return
 
         segmentation = self.model.predict(np.expand_dims(self.test_image, 0))
@@ -84,7 +89,6 @@ class PredictionUICallback(Callback, QObject):
 
 
 class ModelTrainer(QWidget, Ui_ModelTrainerUI):
-
     set_progress_signal = pyqtSignal(int, str)
     start_fitting_signal = pyqtSignal()
     end_fitting_signal = pyqtSignal()
@@ -116,20 +120,6 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         bottom_layout.addWidget(QtWidgets.QLabel('Show validation slice:'))
 
-        self.slice_select_slider = QtWidgets.QSlider(self.bottom_widget)
-        self.slice_select_slider.setOrientation(QtCore.Qt.Horizontal)
-        bottom_layout.addWidget(self.slice_select_slider)
-        self.slice_select_slider.valueChanged.connect(self.val_slice_changed)
-        self.slice_select_slider.setRange(0, 0)
-        self.slice_select_slider.setEnabled(False)
-
-        self.auto_stop_training_checkBox = QtWidgets.QCheckBox('Auto stop training', self.bottom_widget)
-        self.auto_stop_training_checkBox.setChecked(True)
-        self.auto_stop_training_checkBox.stateChanged.connect(self.auto_stop_training_changed)
-        bottom_layout.addWidget(self.auto_stop_training_checkBox)
-
-        self.pyplot_layout.addWidget(self.bottom_widget)
-
         self.advanced_button.clicked.connect(self.show_advanced)
         self.choose_Button.clicked.connect(self.choose_data)
         self.save_choose_Button.clicked.connect(self.choose_save_location)
@@ -146,13 +136,121 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.current_val_slice = 0
         self.val_image_list = []
         self.preprocessed_data_exist = False
-
+        ################################################################
         self.transfer_learning_checkBox.stateChanged.connect(self.toggle_transfer_learning)
         self.pushButton.setEnabled(False)  # Initially disabled
         self.pushButton.clicked.connect(self.choose_base_model)
         self.BaseModel_Text.textChanged.connect(self.decide_enable_fit)
 
-    ################
+        # ** ** ** ** ** ** ** ** ** ** ** ** *
+        # Inside the initialization function in ModelTrainer.py
+        self.BaseModel_Text.textChanged.connect(self.check_base_model_text)
+        self.BaseModel_Text.textChanged.connect(self.toggle_save_button)
+        self.BaseModel_Text.textChanged.connect(self.check_base_model_filled)
+        self.BaseModel_Text.textChanged.connect(self.on_text_changed)
+        # Connect the button's clicked signal to a method that enables the spinBox
+        self.trainableLayersButton.clicked.connect(self.enable_layer_label)
+        self.trainableLayersButton.clicked.connect(self.disable_save_button)
+        self.trainableLayersButton.clicked.connect(self.disable_fit_button_on_trainable)
+        self.trainableLayersButton.clicked.connect(self.on_trainable_layers_clicked)
+
+        # Connect the spinBox's valueChanged signal to a function
+
+        self.transfer_learning_checkBox.stateChanged.connect(self.toggle_save_button)
+        self.transfer_learning_checkBox.clicked.connect(self.toggle_fit_button)
+        self.spinBox.valueChanged.connect(self.check_conditions)
+
+        self.layerLabel.mousePressEvent = self.enable_spinbox
+
+    def on_trainable_layers_clicked(self):
+        """Enable the layerLabel when trainableLayers_Button is clicked."""
+        self.layerLabel.setEnabled(True)
+
+
+    def on_text_changed(self):
+        """Enable or disable the Fit button based on text in base_model_text."""
+        if self.BaseModel_Text.text().strip():
+            self.fit_Button.setEnabled(False)  # Disable the button if text is filled
+        else:
+            self.fit_Button.setEnabled(True)  # Enable the button if text is empty
+
+    def check_conditions(self):
+        """
+        Check the conditions to enable/disable buttons.
+        """
+        # Check if spinBox has a value
+        spinbox_selected = self.spinBox.value() > 0
+
+        # Enable save_choose_Button if spinBox is selected
+        if spinbox_selected:
+            self.save_choose_Button.setEnabled(True)
+        else:
+            self.save_choose_Button.setEnabled(False)
+
+    #########
+    def enable_layer_label(self):
+        """Enable the layer label when trainableLayersButton is clicked."""
+        self.layerLabel.setEnabled(True)
+        print("Layer label enabled.")
+
+    ###########
+    def enable_spinbox(self, event):
+        """Enable the spinBox when layerLabel is clicked."""
+        if self.layerLabel.isEnabled():  # Only enable spinBox if label is enabled
+            self.spinBox.setEnabled(True)
+
+    def toggle_fit_button(self):
+        """
+        Disable fit_button when transfer_learning_checkBox is clicked.
+        """
+        if self.transfer_learning_checkBox.isChecked():
+            self.fit_Button.setEnabled(False)
+        else:
+            self.fit_Button.setEnabled(True)
+
+    #############
+    def toggle_save_button(self):
+        """Disable save_choose_button when Transfer Learning is selected."""
+        if self.transfer_learning_checkBox.isChecked():
+            # If Transfer Learning is selected, enable save_choose_Button only if BaseModel_Text is filled
+            if self.BaseModel_Text.text().strip():
+                self.save_choose_Button.setEnabled(True)
+            else:
+                self.save_choose_Button.setEnabled(False)
+
+        else:
+            self.save_choose_Button.setEnabled(True)
+
+    def disable_save_button(self):
+        """Disable save_choose_button when Trainable Layers Button is clicked."""
+        self.save_choose_Button.setEnabled(False)
+        print("Save button disabled after clicking Set Trainable Layers button.")
+
+    def check_base_model_filled(self):
+        """
+        Enable fit_button if BaseModel_Text is filled.
+        """
+        if self.BaseModel_Text.text().strip():  # Check if the text field is not empty
+            self.fit_Button.setEnabled(True)
+        else:
+            self.fit_Button.setEnabled(False)
+
+    def check_base_model_text(self):
+        """
+        Enable the Set Trainable Layers button and QLineEdit when BaseModel_Text is filled.
+        """
+        if self.BaseModel_Text.text().strip():  # Check if BaseModel_Text is not empty
+            self.trainableLayersButton.setEnabled(True)  # Enable the button
+
+        else:
+            self.trainableLayersButton.setEnabled(False)  # Disable the button
+
+    def disable_fit_button_on_trainable(self):
+        """
+        Disable fit_button when trainableLayersButton is clicked.
+        """
+        self.fit_Button.setEnabled(False)
+
     @pyqtSlot(int)
     def toggle_transfer_learning(self, state):
         """Enable or disable the Choose button and BaseModel_Text based on checkbox state."""
@@ -160,12 +258,10 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.pushButton.setEnabled(enabled)
         self.BaseModel_Text.setEnabled(enabled)
 
-
         # Clear BaseModel_Text when disabling transfer learning
         if not enabled:
             self.BaseModel_Text.clear()
         self.advanced_button.setEnabled(not enabled)
-
 
     @pyqtSlot()
     def choose_base_model(self):
@@ -193,16 +289,20 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
     @pyqtSlot(str, str, result=object)
     def extract_parameter(self, source_code, parameter_name):
         """Extract a parameter's value from the source code based on its assignment pattern."""
-        pattern = rf"{parameter_name}\s*=\s*([0-9]+|\"[^\"]+\"|'[^']+')"
+        pattern = rf"{parameter_name}\s*=\s*([0-9.]+|\"[^\"]+\"|'[^']+|\[[^]]\]')"
+
         match = re.search(pattern, source_code)
 
         if match:
             value = match.group(1)
-            if value.isdigit():
-                return int(value)
-            return value.strip('"').strip("'")
+            try:
+                return ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                return value.strip('"').strip("'")
 
         raise ValueError(f"Parameter '{parameter_name}' not found in source code")
+
+    # ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
 
     @pyqtSlot()
     def show_advanced(self):
@@ -219,7 +319,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.fit_Button.setText('Fit')
         else:
             self.fit_Button.setText('Preprocess + fit')
-        if self.location_Text.text() and (self.model_location_Text.text()or self.BaseModel_Text.text()):
+        if self.location_Text.text() and (self.model_location_Text.text() or self.BaseModel_Text.text()):
             self.fit_Button.setEnabled(True)
             if not self.preprocessed_data_exist or self.force_preprocess_check.isChecked():
                 self.preprocess_Button.setEnabled(True)
@@ -230,8 +330,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.preprocess_Button.setEnabled(False)
             self.set_progress(0, '')
 
-
-
+    #########################################################################
     def decide_preprocess(self):
         if os.path.exists(os.path.join(self.data_dir, 'training_obj.pickle')):
             self.preprocessed_data_exist = True
@@ -311,7 +410,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
 
         self.set_progress_signal.emit(10, 'Getting model info')
         common_resolution, model_size, label_dict = get_model_info(data_list)
-##############################################################
+        ##############################################################
         # TODO: check if transfer  learning is enabled
         # if enabled:
         # load the model:
@@ -343,11 +442,12 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
                 QMessageBox.critical(self, "Error", "Invalid base model path.")
                 return
 
-#############################
+        #############################
         set_force_preprocess(self.force_preprocess_check.isChecked())
 
         self.set_progress_signal.emit(20, 'Creating model')
-        source, model_uuid = create_model_source(self.model_name, common_resolution, model_size, label_dict, levels, conv_layers, kernel_size)
+        source, model_uuid = create_model_source(self.model_name, common_resolution, model_size, label_dict, levels,
+                                                 conv_layers, kernel_size)
 
         # write the new model generator script
         with open(os.path.join(self.model_dir, f'generate_{self.model_name}_model.py'), 'w') as f:
@@ -399,9 +499,8 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         else:
             self.slice_select_slider.setEnabled(False)
 
-
-
-        trained_model, history = train_model(model, training_generator, steps, x_val_list, y_val_list, [self.fitting_ui_callback], base_model)
+        trained_model, history = train_model(model, training_generator, steps, x_val_list, y_val_list,
+                                             [self.fitting_ui_callback], base_model)
         if self.fitting_ui_callback.best_weights is not None:
             trained_model.set_weights(self.fitting_ui_callback.best_weights)
 
@@ -411,12 +510,12 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.set_progress_signal.emit(90, 'Saving model')
 
         model_object = DynamicDLModel(model_uuid,
-                                     create_model_function,
-                                     apply_model_function,
-                                     incremental_learn_function=incremental_learn_function,
-                                     weights=trained_model.get_weights(),
-                                     timestamp_id=int(time.time())
-                                     )
+                                      create_model_function,
+                                      apply_model_function,
+                                      incremental_learn_function=incremental_learn_function,
+                                      weights=trained_model.get_weights(),
+                                      timestamp_id=int(time.time())
+                                      )
 
         with open(os.path.join(self.model_dir, f'{self.model_name}.model'), 'wb') as f:
             model_object.dump(f)
@@ -517,13 +616,12 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
     @pyqtSlot()
     def fit_clicked(self):
         if self.is_fitting:
-            #stop the fitting
+            # stop the fitting
             if self.fitting_ui_callback is not None:
                 self.fitting_ui_callback.stop()
                 self.fit_Button.setText('Stopping...')
         else:
             self.fit()
-
 
 def main():
     import sys

@@ -9,25 +9,21 @@ import sys
 import time
 import uuid
 
-
 from dafne_dl.DynamicDLModel import source_to_fn, DynamicDLModel
 
-
 assert sys.version_info.major == 3, "This software is only compatible with Python 3.x"
-
 
 if sys.version_info.minor < 9:
     from dafne_models.utils.source_tools import extract_function_source_basic as extract_function_source
 else:
     from dafne_models.utils.source_tools import extract_function_source
 
-
 from dafne_models import resources
+
 if sys.version_info.minor < 10:
     import importlib_resources as pkg_resources
 else:
     import importlib.resources as pkg_resources
-
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -49,7 +45,6 @@ MIN_EPOCHS = 10
 MAX_INPUT_SIZE = 256
 DEFAULT_BIASCORRECTION_LEVELS = 4
 DEFAULT_BIASCORRECTION_NORMALIZE = -1
-
 
 DATA_PATH = None
 
@@ -110,15 +105,15 @@ def get_model_info(data_list):
     resolutions = [data['resolution'][:2] for data in data_list]
     common_resolution = np.median(resolutions, axis=0)[:2]
 
-    max_size = [np.ceil(data['data'].shape[:2]*data['resolution'][:2] / common_resolution).max() for data in data_list]
+    max_size = [np.ceil(data['data'].shape[:2] * data['resolution'][:2] / common_resolution).max() for data in
+                data_list]
     max_size = int(max(max_size))
     if max_size > MAX_INPUT_SIZE:
         zoom_factor = MAX_INPUT_SIZE / max_size
         common_resolution = common_resolution / zoom_factor
         max_size = MAX_INPUT_SIZE
 
-    common_resolution = [2.0, 2.0]
-    model_size = FIXED_MODEL_SIZE
+    model_size = [max_size, max_size]
 
     labels = set()
     for data in data_list:
@@ -138,13 +133,13 @@ def get_model_info(data_list):
                 print(f'Warning: dataset {i} is missing label {label}')
             else:
                 n_existing_labels += 1
-        if n_existing_labels <= n_labels/2:
+        if n_existing_labels <= n_labels / 2:
             missing_data_list.append(i)
 
     for i in missing_data_list[::-1]:
         data_list.pop(i)
 
-    label_dict = {i+1: sanitize_label(label) for i, label in enumerate(labels)}
+    label_dict = {i + 1: sanitize_label(label) for i, label in enumerate(labels)}
     return common_resolution, model_size, label_dict
 
 
@@ -177,7 +172,8 @@ def convert_3d_mask_to_slices(mask_dictionary):
     """
     mask_list = []
     for i in range(mask_dictionary[list(mask_dictionary.keys())[0]].shape[2]):
-        mask_list.append({sanitize_label(label): (mask[:, :, i] > 0).astype(np.uint8) for label, mask in mask_dictionary.items()})
+        mask_list.append(
+            {sanitize_label(label): (mask[:, :, i] > 0).astype(np.uint8) for label, mask in mask_dictionary.items()})
     return mask_list
 
 
@@ -195,7 +191,7 @@ def normalize_training_data(data_list, common_resolution, model_size, label_dict
     all_masks_list = []
 
     for i, data in enumerate(data_list):
-        print('Normalizing', i+1, '/', len(data_list))
+        print('Normalizing', i + 1, '/', len(data_list))
         img_3d = data['data']
         image_list = [img_3d[:, :, i].astype(np.float32) for i in range(img_3d.shape[2])]
         training_data_dict = {'image_list': image_list, 'resolution': data['resolution'][:2]}
@@ -230,7 +226,8 @@ def make_validation_list(data_list, common_resolution, model_size, label_dict):
     :param label_dict: dictionary of the labels
     :return:
     """
-    if STORE_PREPROCESS and DATA_PATH and os.path.exists(os.path.join(DATA_PATH, 'validation_obj.pickle')) and not FORCE_PREPROCESS:
+    if STORE_PREPROCESS and DATA_PATH and os.path.exists(
+            os.path.join(DATA_PATH, 'validation_obj.pickle')) and not FORCE_PREPROCESS:
         with open(os.path.join(DATA_PATH, 'validation_obj.pickle'), 'rb') as f:
             training_objects = pickle.load(f)
     else:
@@ -244,7 +241,8 @@ def make_validation_list(data_list, common_resolution, model_size, label_dict):
         if STORE_PREPROCESS and DATA_PATH:
             with open(os.path.join(DATA_PATH, 'validation_obj.pickle'), 'wb') as f:
                 pickle.dump(training_objects, f)
-    x_list = [np.stack([training_object[:, :, 0], training_object[:, :, -1]], axis=-1) for training_object in training_objects]
+    x_list = [np.stack([training_object[:, :, 0], training_object[:, :, -1]], axis=-1) for training_object in
+              training_objects]
     y_list = [training_object[:, :, 1:-1] for training_object in training_objects]
     return x_list, y_list
 
@@ -258,7 +256,8 @@ def make_data_generator(data_list, common_resolution, model_size, label_dict):
     :param label_dict: dictionary of the labels
     :return:
     """
-    if STORE_PREPROCESS and DATA_PATH and os.path.exists(os.path.join(DATA_PATH, 'training_obj.pickle')) and not FORCE_PREPROCESS:
+    if STORE_PREPROCESS and DATA_PATH and os.path.exists(
+            os.path.join(DATA_PATH, 'training_obj.pickle')) and not FORCE_PREPROCESS:
         with open(os.path.join(DATA_PATH, 'training_obj.pickle'), 'rb') as f:
             training_objects = pickle.load(f)
     else:
@@ -290,7 +289,7 @@ def prepare_data(training_data_list, validation_data_list, common_resolution, mo
     return training_generator, steps, x_val_list, y_val_list
 
 
-def train_model(model, training_generator, steps, x_val_list, y_val_list, custom_callbacks=None):
+def train_model(model, training_generator, steps, x_val_list, y_val_list, custom_callbacks=None,base_model=None):
     """
     Train the model
     :param model: Keras model
@@ -301,11 +300,8 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
     :return: the trained model
     """
     n_validation = len(x_val_list)
-
-    TRANSFER_LEARNING=True
-
-    if TRANSFER_LEARNING:
-        with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
+    if base_model is not None:
+        with open(base_model, 'rb') as f:
             old_dafne_model = DynamicDLModel.Load(f)
 
         old_model = old_dafne_model.model
@@ -322,14 +318,60 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
             layer.trainable = False
 
         model.layers[-1].trainable = True
+###########################################
+    TRANSFER_LEARNING = True
+    FINE_TUNING = num_trainable_layers is not None  # Enable fine-tuning if user specifies layers
 
+    if TRANSFER_LEARNING:
+        # Load pre-trained CHAOS model
+        with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
+            old_dafne_model = DynamicDLModel.Load(f)
 
+        old_model = old_dafne_model.model
+
+        print('Total layers in current model:', len(model.layers))
+        print('Transferring weights from base model...')
+        current_layer = 0
+        for layer, chaos_layer in zip(model.layers[:-1], old_model.layers):
+            print(f"Setting weights for layer {current_layer}")
+            current_layer += 1
+            try:
+                layer.set_weights(chaos_layer.get_weights())
+            except ValueError:
+                print(f"Skipping incompatible layer: {layer.name}")
+                break
+
+        # Fine-Tuning Logic
+        if FINE_TUNING:
+            total_layers = len(model.layers)  # Total layers in the model
+
+            # Ensure the user-provided value is valid
+            if num_trainable_layers < 0 or num_trainable_layers > total_layers:
+                raise ValueError(
+                    f"Invalid number of trainable layers: {num_trainable_layers}. It must be between 0 and {total_layers}."
+                )
+
+            # Calculate the starting index to unfreeze
+            fine_tune_at = total_layers - num_trainable_layers
+            print(f"Fine-tuning from layer index: {fine_tune_at}")
+
+            # Freeze all layers before `fine_tune_at`
+            for layer in model.layers[:fine_tune_at]:
+                layer.trainable = False
+
+            # Unfreeze all layers from `fine_tune_at` onwards
+            for layer in model.layers[fine_tune_at:]:
+                layer.trainable = True
+                print(f"Layer {layer.name} set to Trainable")
+
+######################################
+
+    # Compile the model
     adamlr = optimizers.Adam(learning_rate=0.009765, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     model.compile(loss=weighted_loss, optimizer=adamlr)
 
+    # Callbacks for training
     if n_validation > 0:
-        if ENABLE_GUI:
-            plt.ion()
         class PredictionCallback(Callback):
             def __init__(self):
                 super().__init__()
@@ -344,39 +386,35 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
                     self.min_val_loss = logs['val_loss']
                     self.n_val_loss_increases = 0
                     self.best_weights = self.model.get_weights()
-                elif logs['val_loss'] > self.min_val_loss:
+                else:
                     self.n_val_loss_increases += 1
 
                 if self.n_val_loss_increases >= PATIENCE:
                     self.model.stop_training = True
-
-                if ENABLE_GUI:
-                    segmentation = self.model.predict(np.expand_dims(x_val_list[0], 0))
-                    label = np.argmax(np.squeeze(segmentation[0, :, :, :-1]), axis=2)
-                    plt.imshow(label)
-                    plt.show(block=False)
-                    plt.pause(0.001)
 
         prediction_callback = PredictionCallback()
 
         if custom_callbacks is None:
             custom_callbacks = [prediction_callback]
 
-        history = model.fit(training_generator, epochs=MAX_EPOCHS,
-                            steps_per_epoch=steps,
-                            validation_data=(np.stack(x_val_list, 0), np.stack(y_val_list, 0)),
-                            callbacks=custom_callbacks,
-                            verbose=1)
+        history = model.fit(
+            training_generator,
+            epochs=MAX_EPOCHS,
+            steps_per_epoch=steps,
+            validation_data=(np.stack(x_val_list, 0), np.stack(y_val_list, 0)),
+            callbacks=custom_callbacks,
+            verbose=1
+        )
 
         if prediction_callback.best_weights is not None:
             model.set_weights(prediction_callback.best_weights)
-
     else:
         if custom_callbacks is None:
             custom_callbacks = []
         history = model.fit(training_generator, epochs=MAX_EPOCHS, steps_per_epoch=steps, verbose=1, callbacks=custom_callbacks)
 
     return model, history
+
 
 
 def create_model_source(model_name, common_resolution, model_size, label_dict, levels=5, conv_layers=2, kernel_size=2):
@@ -424,7 +462,8 @@ def create_model(model_name, data_path, levels=5, conv_layers=2, kernel_size=2, 
         DATA_PATH = data_path
         common_resolution, model_size, label_dict = get_model_info(data_list)
 
-    source, model_id = create_model_source(model_name, common_resolution, model_size, label_dict, levels, conv_layers, kernel_size)
+    source, model_id = create_model_source(model_name, common_resolution, model_size, label_dict, levels, conv_layers,
+                                           kernel_size)
 
     with open(f'generate_{model_name}_model.py', 'w') as f:
         f.write(source)
@@ -503,7 +542,8 @@ def main():
 
     MIN_EPOCHS = args.min_epochs
 
-    dl_model, history = create_model(args.model_name, args.data_path, args.levels, args.conv_layers, args.kernel_size, args.test_model)
+    dl_model, history = create_model(args.model_name, args.data_path, args.levels, args.conv_layers, args.kernel_size,
+                                     args.test_model)
 
     if PREPROCESS_ONLY or args.test_model:
         return
