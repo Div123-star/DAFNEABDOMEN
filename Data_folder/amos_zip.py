@@ -1,13 +1,13 @@
 import os
 import numpy as np
 import nibabel as nib
-import zipfile
+
 
 # Constants for organ label values in the AMOS dataset
 ORGAN_LABELS = {
     1: 'spleen',
-    2: 'right_kidney',
-    3: 'left_kidney',
+    2: 'RK',
+    3: 'LK',
     4: 'gallbladder',
     5: 'esophagus',
     6: 'liver',
@@ -30,6 +30,9 @@ def read_image(path):
     return image_array, resolution
 
 def convert_and_save_to_npz(image_folder, label_folder, output_folder):
+    """
+    Convert and save each image-label pair as a separate .npz file.
+    """
     os.makedirs(output_folder, exist_ok=True)
 
     for image_filename in os.listdir(image_folder):
@@ -44,13 +47,11 @@ def convert_and_save_to_npz(image_folder, label_folder, output_folder):
                 label_array, _ = read_image(label_path)
 
                 # Prepare data dictionary
-                data = {'data': img_array.astype(np.float32), 'resolution': resolution}
-
-                # Generate organ masks
-                for label_value, organ_name in ORGAN_LABELS.items():
-                    organ_mask = (label_array == label_value).astype(np.uint8)
-                    if np.any(organ_mask):
-                        data[f'mask_{organ_name}'] = organ_mask
+                data = {
+                    'data': img_array.astype(np.float32),
+                    'label': label_array.astype(np.int32),
+                    'resolution': resolution
+                }
 
                 # Save data to .npz file
                 npz_filename = image_filename.replace('.nii.gz', '.npz').replace('.nii', '.npz')
@@ -60,19 +61,10 @@ def convert_and_save_to_npz(image_folder, label_folder, output_folder):
             else:
                 print(f"Label file not found for {image_filename}")
 
-def zip_npz_files(source_folder, output_zip_file):
-    with zipfile.ZipFile(output_zip_file, 'w') as zipf:
-        for root, _, files in os.walk(source_folder):
-            for file in files:
-                if file.endswith('.npz'):
-                    file_path = os.path.join(root, file)
-                    zipf.write(file_path, arcname=os.path.relpath(file_path, source_folder))
-                    print(f"Added {file_path} to {output_zip_file}")
-
 def main():
     base_path = "/Users/dibya/dafne/MyThesisDatasets/amos22/MRI_data"  # Path where MRI_data folder will be created
     output_folder = os.path.join(base_path, "npz_files")
-    output_zip_file = os.path.join(base_path, "MRI_data.zip")
+
 
     #convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/test_data", "/Users/dibya/dafne/MyThesisDatasets/amos22/test_labels", '/Users/dibya/dafne/MyThesisDatasets/test_output/')
     # Convert and save images and labels from each MRI folder

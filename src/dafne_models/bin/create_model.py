@@ -288,43 +288,26 @@ def prepare_data(training_data_list, validation_data_list, common_resolution, mo
 
     return training_generator, steps, x_val_list, y_val_list
 
-
-def train_model(model, training_generator, steps, x_val_list, y_val_list, custom_callbacks=None,base_model=None):
+def train_model(model, training_generator, steps, x_val_list, y_val_list, custom_callbacks=None, base_model=None,
+                num_trainable_layers=None):
     """
     Train the model
     :param model: Keras model
-    :param data_list: list of data
-    :param common_resolution: resolution of the model
-    :param model_size: size of the model
-    :param label_dict: dictionary with labels
+    :param training_generator: Training data generator
+    :param steps: Steps per epoch
+    :param x_val_list: Validation inputs
+    :param y_val_list: Validation labels
+    :param custom_callbacks: List of callbacks
+    :param base_model: Path to the base model for transfer learning
+    :param num_trainable_layers: Number of trainable layers for fine-tuning
     :return: the trained model
     """
     n_validation = len(x_val_list)
-    if base_model is not None:
-        with open(base_model, 'rb') as f:
-            old_dafne_model = DynamicDLModel.Load(f)
-
-        old_model = old_dafne_model.model
-
-        print('Total layers', len(model.layers))
-        current_layer = 0
-        for layer, chaos_layer in zip(model.layers[:-1], old_model.layers):
-            print(current_layer)
-            current_layer += 1
-            try:
-                layer.set_weights(chaos_layer.get_weights())
-            except ValueError:
-                break
-            layer.trainable = False
-
-        model.layers[-1].trainable = True
-###########################################
-    TRANSFER_LEARNING = True
-    FINE_TUNING = num_trainable_layers is not None  # Enable fine-tuning if user specifies layers
+    TRANSFER_LEARNING = base_model is not None
 
     if TRANSFER_LEARNING:
         # Load pre-trained CHAOS model
-        with open('/Users/dibya/dafne/MyThesisDatasets/CHAOS_Dataset_for_Dibya/chaos.model', 'rb') as f:
+        with open(base_model, 'rb') as f:
             old_dafne_model = DynamicDLModel.Load(f)
 
         old_model = old_dafne_model.model
@@ -332,17 +315,20 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
         print('Total layers in current model:', len(model.layers))
         print('Transferring weights from base model...')
         current_layer = 0
-        for layer, chaos_layer in zip(model.layers[:-1], old_model.layers):
+        for layer, base_model_layer in zip(model.layers[:-1], old_model.layers):
             print(f"Setting weights for layer {current_layer}")
             current_layer += 1
             try:
-                layer.set_weights(chaos_layer.get_weights())
+                layer.set_weights(base_model_layer.get_weights())
             except ValueError:
                 print(f"Skipping incompatible layer: {layer.name}")
                 break
+            layer.trainable = False  # Initially freeze all transferred layers
 
-        # Fine-Tuning Logic
-        if FINE_TUNING:
+        model.layers[-1].trainable = True  # Keep the last layer trainable by default
+
+        # Fine-tuning at a specific point if num_trainable_layers is provided
+        if num_trainable_layers is not None:
             total_layers = len(model.layers)  # Total layers in the model
 
             # Ensure the user-provided value is valid
@@ -355,16 +341,7 @@ def train_model(model, training_generator, steps, x_val_list, y_val_list, custom
             fine_tune_at = total_layers - num_trainable_layers
             print(f"Fine-tuning from layer index: {fine_tune_at}")
 
-            # Freeze all layers before `fine_tune_at`
-            for layer in model.layers[:fine_tune_at]:
-                layer.trainable = False
-
-            # Unfreeze all layers from `fine_tune_at` onwards
-            for layer in model.layers[fine_tune_at:]:
-                layer.trainable = True
-                print(f"Layer {layer.name} set to Trainable")
-
-######################################
+    ######################################
 
     # Compile the model
     adamlr = optimizers.Adam(learning_rate=0.009765, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
