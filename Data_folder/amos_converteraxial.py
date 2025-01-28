@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import nibabel as nib
+import zipfile
 
 # Constants for organ label values in the AMOS dataset
 ORGAN_LABELS = {
@@ -24,7 +25,7 @@ ORGAN_LABELS = {
 def read_image(path):
     """Read image using nibabel and return numpy array and resolution."""
     image = nib.load(path)
-    image_array = np.fliplr(np.flipud(np.transpose(image.get_fdata(), (1, 0, 2))))
+    image_array = np.fliplr(np.flipud(np.transpose(image.get_fdata(), (1,0,2) )))
     resolution = image.header.get_zooms()
     return image_array, resolution
 
@@ -45,11 +46,10 @@ def convert_and_save_to_npz(image_folder, label_folder, output_folder):
                 # Prepare data dictionary
                 data = {'data': img_array.astype(np.float32), 'resolution': resolution}
 
-                # Generate binary organ masks
+                # Generate organ masks
                 for label_value, organ_name in ORGAN_LABELS.items():
-                    # Create binary mask for the current organ
                     organ_mask = (label_array == label_value).astype(np.uint8)
-                    if np.any(organ_mask):  # Only include if the organ is present
+                    if np.any(organ_mask):
                         data[f'mask_{organ_name}'] = organ_mask
 
                 # Save data to .npz file
@@ -60,17 +60,26 @@ def convert_and_save_to_npz(image_folder, label_folder, output_folder):
             else:
                 print(f"Label file not found for {image_filename}")
 
-def main():
-    base_path = "/Users/dibya/dafne/MyThesisDatasets/amos22/MRI_data"
-    output_folder = os.path.join(base_path, "npz_files")
+def zip_npz_files(source_folder, output_zip_file):
+    with zipfile.ZipFile(output_zip_file, 'w') as zipf:
+        for root, _, files in os.walk(source_folder):
+            for file in files:
+                if file.endswith('.npz'):
+                    file_path = os.path.join(root, file)
+                    zipf.write(file_path, arcname=os.path.relpath(file_path, source_folder))
+                    print(f"Added {file_path} to {output_zip_file}")
 
+def main():
+    base_path = "/Users/dibya/dafne/MyThesisDatasets/amos22/MRI_data"  # Path where MRI_data folder will be created
+    output_folder = os.path.join(base_path, "npz_files")
+    output_zip_file = os.path.join(base_path, "MRI_data.zip")
+
+    #convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/test_data", "/Users/dibya/dafne/MyThesisDatasets/amos22/test_labels", '/Users/dibya/dafne/MyThesisDatasets/test_output/')
     # Convert and save images and labels from each MRI folder
-    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesTr_mri",
-                            "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsTr_mri", output_folder)
-    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesTs_mri",
-                            "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsTs_mri", output_folder)
-    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesVa_mri",
-                            "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsVa_mri", output_folder)
+    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesTr_mri", "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsTr_mri", output_folder)
+    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesTs_mri", "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsTs_mri", output_folder)
+    convert_and_save_to_npz("/Users/dibya/dafne/MyThesisDatasets/amos22/imagesVa_mri", "/Users/dibya/dafne/MyThesisDatasets/amos22/labelsVa_mri", output_folder)
+
 
 if __name__ == "__main__":
     main()

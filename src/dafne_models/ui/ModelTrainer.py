@@ -149,28 +149,28 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
         self.val_image_list = []
         self.preprocessed_data_exist = False
         ################################################################
-        self.transfer_learning_checkBox.stateChanged.connect(self.toggle_transfer_learning)
+
         self.pushButton.setEnabled(False)  # Initially disabled
         self.pushButton.clicked.connect(self.choose_base_model)
         self.BaseModel_Text.textChanged.connect(self.decide_enable_fit)
         self.BaseModel_Text.textChanged.connect(self.on_text_changed)
         self.transfer_learning_checkBox.clicked.connect(self.toggle_fit_button)
-        self.selected_layers_Label.mousePressEvent = self.enable_spinbox
 
-        # Connect the BaseModel_Text textChanged signal to a custom method
+        # Connect toggled signal to enable/disable widgets
+        self.transfer_learning_checkBox.toggled.connect(self.set_transfer_learning_enabled)
 
-        self.BaseModel_Text.textChanged.connect(self.toggle_selected_layers_label)
+        # Initialize widgets state based on the checkbox's initial state
+        self.set_transfer_learning_enabled(self.transfer_learning_checkBox.isChecked())
 
-    def toggle_selected_layers_label(self, text):
+    def set_transfer_learning_enabled(self, enabled):
         """
-        Enable or disable selected_layers_Label based on whether BaseModel_Text is filled.
-        :param text: The current text in BaseModel_Text.
+        Enable or disable all widgets inside the QHBoxLayout in transfer_learning_checkBox.
         """
-        # Enable the label if BaseModel_Text is not empty, otherwise disable it
-        if text.strip():  # Check if text is not empty or only spaces
-            self.selected_layers_Label.setEnabled(True)
-        else:
-            self.selected_layers_Label.setEnabled(False)
+        for i in range(self.horizontalLayout_6.count()):
+            widget = self.horizontalLayout_6.itemAt(i).widget()
+            if widget:
+                widget.setEnabled(enabled)
+
 
     def on_text_changed(self):
         """Enable or disable the Fit button based on text in base_model_text."""
@@ -178,11 +178,6 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.fit_Button.setEnabled(False)  # Disable the button if text is filled
         else:
             self.fit_Button.setEnabled(True)  # Enable the button if text is empty
-
-    def enable_spinbox(self, event):
-        """Enable the spinBox when layerLabel is clicked."""
-        if self.selected_layers_Label.isEnabled():  # Only enable spinBox if label is enabled
-            self.num_trainable_layers_spinBox.setEnabled(True)
 
     def toggle_fit_button(self):
         """
@@ -194,18 +189,6 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.fit_Button.setEnabled(True)
 
     #############
-
-    @pyqtSlot(int)
-    def toggle_transfer_learning(self, state):
-        """Enable or disable the Choose button and BaseModel_Text based on checkbox state."""
-        enabled = bool(state)
-        self.pushButton.setEnabled(enabled)
-        self.BaseModel_Text.setEnabled(enabled)
-
-        # Clear BaseModel_Text when disabling transfer learning
-        if not enabled:
-            self.BaseModel_Text.clear()
-        self.advanced_button.setEnabled(not enabled)
 
     @pyqtSlot()
     def choose_base_model(self):
@@ -227,8 +210,7 @@ class ModelTrainer(QWidget, Ui_ModelTrainerUI):
             self.transfer_learning_checkBox.setChecked(not bool(state))  # Invert the state
             self.transfer_learning_checkBox.blockSignals(False)
 
-        # Update UI based on transfer_learning_checkBox state
-        self.toggle_transfer_learning(self.transfer_learning_checkBox.isChecked())
+
 
     @pyqtSlot(str, str, result=object)
     def extract_parameter(self, source_code, parameter_name):
